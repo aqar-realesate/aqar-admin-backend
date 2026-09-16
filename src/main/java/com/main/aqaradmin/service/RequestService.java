@@ -100,10 +100,21 @@ public class RequestService {
                         HttpStatus.NOT_FOUND);
             }
             Request request = optRequest.get();
+            Unit unit = unitRepository.findById(request.getUnitId()).get();
 
             request.setRequestStatus(RequestStatus.APPROVED);
             request.setAdminId(admin.getId());
-            request.setI
+            if (!unit.getIsActive()) {
+                return new ResponseEntity<>(new ReturnObject(
+                        "Unit is not active",
+                        false,
+                        null
+                ),
+                        HttpStatus.BAD_REQUEST);
+            }
+            unit.setIsActive(false);
+            unitRepository.save(unit);
+
             requestRepository.save(request);
 
             RequestDetailsDto response = RequestDetailsDto.builder()
@@ -148,6 +159,16 @@ public class RequestService {
                         HttpStatus.NOT_FOUND);
             }
             Request request = optRequest.get();
+            Unit unit = unitRepository.findById(request.getUnitId()).get();
+
+            if (!unit.getIsActive()) {
+                return new ResponseEntity<>(new ReturnObject(
+                        "Unit is not active",
+                        false,
+                        null
+                ),
+                        HttpStatus.BAD_REQUEST);
+            }
 
             request.setRequestStatus(RequestStatus.REJECTED);
             request.setAdminId(admin.getId());
@@ -195,6 +216,18 @@ public class RequestService {
                         HttpStatus.NOT_FOUND);
             }
             Request request = optRequest.get();
+
+            Unit unit = unitRepository.findById(request.getUnitId()).get();
+
+            if (!unit.getIsActive()) {
+                return new ResponseEntity<>(new ReturnObject(
+                        "Unit is not active",
+                        false,
+                        null
+                ),
+                        HttpStatus.BAD_REQUEST);
+            }
+
 
             request.setRequestStatus(RequestStatus.NEED_ACTION);
             request.setActionComment(comment);
