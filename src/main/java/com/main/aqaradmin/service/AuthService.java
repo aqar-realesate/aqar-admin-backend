@@ -1,8 +1,6 @@
 package com.main.aqaradmin.service;
 
-import com.main.aqaradmin.dto.AdminCreationDto;
-import com.main.aqaradmin.dto.RegisterAdminRequestDto;
-import com.main.aqaradmin.dto.ReturnObject;
+import com.main.aqaradmin.dto.*;
 import com.main.aqaradmin.model.Admin;
 import com.main.aqaradmin.repository.AdminRepository;
 import com.main.aqaradmin.util.JwtUtil;
@@ -13,6 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final OtpService otpService;
     private final JwtUtil jwtUtil;
+    private final AuthenticationManager authenticationManager;
+
 
     @Value("${jwt.expiration.ms}")
     private Long cookieExpirationMs;
@@ -92,7 +96,7 @@ public class AuthService {
     }
 
     @Transactional
-    public ResponseEntity<?> verifyOtp(Admin admin, String inputOtp) {
+    public ResponseEntity<ReturnObject> verifyOtp(Admin admin, String inputOtp) {
 
         // Check if customer is blocked
         if (admin.getIsBlocked()) {
@@ -149,6 +153,107 @@ public class AuthService {
         log.info("Otp verified successfully for: {}", admin.getEmail());
         return new ResponseEntity<>(new ReturnObject("Otp verified successfully", true, null),
                 HttpStatus.OK);
+    }
+
+
+    public ResponseEntity<ReturnObject> login(LoginRequestDto requestDto, HttpServletResponse httpResponse) {
+
+        // Check email
+        Admin admin = adminRepository.findByEmail(requestDto.getEmail());
+        if (admin == null) {
+            log.error("There's no admin with this email: {}", requestDto.getEmail());
+            return new ResponseEntity<>(ReturnObject.builder()
+                    .message("Invalid email or password")
+                    .status(false)
+                    .data(null)
+                    .build(),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        if (Boolean.FALSE.equals(admin.getIsVerified()) || admin.getIsVerified() == null) {
+            return new ResponseEntity<>(ReturnObject.builder()
+                    .message("You are not verified your otp yet")
+                    .status(false)
+                    .data(null)
+                    .build(),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        // Check failed attempts
+        if (admin.getFailedAttempts() > 5) {
+            log.error("The admin exceeds the maximum failed attempts");
+            admin.setIsBlocked(true);
+            admin.setBlockedAt(LocalDateTime.now());
+            adminRepository.save(admin);
+            return new ResponseEntity<>(ReturnObject.builder()
+                    .message("You reached the maximum login failed attempts, you're blocked for 5 minutes")
+                    .status(false)
+                    .data(null)
+                    .build(),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        // Check the incorrect credentials
+        if (!authenticateCredentials(admin.getEmail(), requestDto.getPassword(), admin)) {
+            log.error("The password is incorrect");
+            admin.setFailedAttempts(admin.getFailedAttempts() + 1);
+            adminRepository.save(admin);
+            return new ResponseEntity<>(ReturnObject.builder()
+                    .message("Invalid email or password")
+                    .status(false)
+                    .data(null)
+                    .build(),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        log.info("The email and password are correct");
+        admin.setFailedAttempts(0);
+        admin.setIsBlocked(false);
+        admin.setBlockedAt(null);
+        admin.setOtpExpiresAt(null);
+        admin.setOtp(null);
+        admin.setOtpLastSentAt(null);
+        admin.setOtpCount(0);
+        admin.setOtpVerifiedAt(null);
+        adminRepository.save(admin);
+
+        LoginResponseDto response = LoginResponseDto.builder()
+                .id(admin.getId())
+                .name(admin.getName())
+                .email(admin.getEmail())
+                .isVerified(admin.getIsVerified())
+                .build();
+
+        final String jwt = jwtUtil.generateToken(admin.getEmail(), admin.getId());
+        addCookie(jwt, httpResponse, cookieExpirationMs);
+        log.info(httpResponse.getHeaders("Set-Cookie").toString());
+        response.setCookieExpiry(LocalDateTime.now().plusSeconds(cookieExpirationMs / 1000));
+        response.setToken(jwt);
+
+        return new ResponseEntity<>(ReturnObject.builder()
+                .message("Login Successfully")
+                .status(true)
+                .data(response)
+                .build(),
+                HttpStatus.OK);
+    }
+
+
+    private Boolean authenticateCredentials(String email, String password, Admin admin) {
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(admin.getEmail(), password)
+            );
+            adminRepository.save(admin);
+            log.info("Successful authentication for user ID: {}", admin.getId());
+            return true;
+        } catch (BadCredentialsException e) {
+            log.warn("Failed login attempt for national ID: {}", email);
+            return false;
+        } catch (AuthenticationException e) {
+            log.error("Authentication error for user: {} - {}", email, e.getMessage());
+            return false;
+        }
     }
 
 }
