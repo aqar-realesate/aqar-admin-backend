@@ -1,6 +1,8 @@
 package com.main.aqaradmin.controller;
 
+import com.main.aqaradmin.dto.ChangePasswordRequestDto;
 import com.main.aqaradmin.dto.ReturnObject;
+import com.main.aqaradmin.dto.VerifyOtpRequestDto;
 import com.main.aqaradmin.model.Admin;
 import com.main.aqaradmin.repository.AdminRepository;
 import com.main.aqaradmin.service.AdminService;
@@ -60,7 +62,7 @@ public class AdminController {
     @PostMapping("/change-password/verify-otp")
     public ResponseEntity<ReturnObject> verifyOtp(
             @CookieValue("Authorization") String token,
-            @RequestBody String otp) {
+            @RequestBody VerifyOtpRequestDto requestDto) {
 
         if (token == null) {
             return new ResponseEntity<>(ReturnObject.builder()
@@ -71,7 +73,7 @@ public class AdminController {
                     HttpStatus.BAD_REQUEST);
         }
 
-        if (otp == null) {
+        if (requestDto == null) {
             return new ResponseEntity<>(ReturnObject.builder()
                     .message("Please fill the otp field")
                     .status(false)
@@ -82,14 +84,14 @@ public class AdminController {
 
         String email = jwtUtil.extractEmail(token);
         Admin admin = adminRepository.findByEmail(email);
-        return adminService.verifyOtp(admin, otp);
+        return adminService.verifyOtp(admin, requestDto.getOtp());
     }
 
 
     @PostMapping("/change_password")
     public ResponseEntity<ReturnObject> changePassword(
             @CookieValue("Authorization") String token,
-            @RequestBody String password
+            @RequestBody ChangePasswordRequestDto requestDto
     ) {
 
         if (token == null) {
@@ -104,6 +106,6 @@ public class AdminController {
         String email = jwtUtil.extractEmail(token);
         Admin admin = adminRepository.findByEmail(email);
 
-        return adminService.changePassword(admin, password);
+        return adminService.changePassword(admin, requestDto.getPassword());
     }
 }

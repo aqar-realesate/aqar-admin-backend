@@ -1,5 +1,6 @@
 package com.main.aqaradmin.controller;
 
+import com.main.aqaradmin.dto.GetCustomerInfoRequestDto;
 import com.main.aqaradmin.dto.ReturnObject;
 import com.main.aqaradmin.service.CustomerService;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +20,9 @@ public class CustomerController {
     private final CustomerService customerService;
 
     @GetMapping()
-    public ResponseEntity<ReturnObject> getCustomerInfo(@RequestBody Integer customerId) {
+    public ResponseEntity<ReturnObject> getCustomerInfo(@RequestBody GetCustomerInfoRequestDto requestDto) {
 
-        return customerService.getCustomerInfo(customerId);
+        return customerService.getCustomerInfo(requestDto.getCustomerId());
     }
 
 }

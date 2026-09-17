@@ -1,5 +1,6 @@
 package com.main.aqaradmin.controller;
 
+import com.main.aqaradmin.dto.NeedActionRequestDto;
 import com.main.aqaradmin.dto.ReturnObject;
 import com.main.aqaradmin.model.Admin;
 import com.main.aqaradmin.repository.AdminRepository;
@@ -67,7 +68,7 @@ public class RequestController {
     @PostMapping("/need_action/{requestId}")
     public ResponseEntity<ReturnObject> needActionRequest(@CookieValue("Authorization") String token,
                                                           @PathVariable Integer requestId,
-                                                          @RequestBody String comment) {
+                                                          @RequestBody NeedActionRequestDto requestDto) {
 
         if (token == null) {
             return new ResponseEntity<>(ReturnObject.builder()
@@ -80,7 +81,7 @@ public class RequestController {
 
         String email = jwtUtil.extractEmail(token);
         Admin admin = adminRepository.findByEmail(email);
-        return requestService.needActionRequest(admin, requestId, comment);
+        return requestService.needActionRequest(admin, requestId, requestDto.getComment());
     }
 
 }
